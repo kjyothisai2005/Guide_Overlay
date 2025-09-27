@@ -1,0 +1,38 @@
+[
+  {
+    "action": "navigate",
+    "url": "http://localhost:8080/task.html"
+  },
+  {
+    "action": "type",
+    "target": "username field",
+    "value": "demoUser"
+  },
+  {
+    "action": "type",
+    "target": "#password",
+    "value": "123456"
+  },
+  {
+    "action": "radio",
+    "target": "male option"
+  },
+  {
+    "action": "check",
+    "target": "terms checkbox"
+  },
+  {
+    "action": "select",
+    "target": "country dropdown",
+    "value": "IN"
+  },
+  {
+    "action": "click",
+    "target": "Login Button"
+  },
+  {
+    "action": "assert",
+    "target": "welcome message",
+    "value": "Welcome!"
+  }
+]
