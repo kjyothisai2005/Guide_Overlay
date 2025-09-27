@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Guided Overlay Demo</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="resolverStub.js"></script>
+</head>
+<body>
+  <h1>Demo Page</h1>
+  <input id="username" placeholder="Enter username" /><br/>
+  <input id="password" placeholder="Enter password" type="password" /><br/>
+
+  <label><input type="radio" name="gender" id="male" /> Male</label>
+  <label><input type="radio" name="gender" id="female" /> Female</label><br/>
+
+  <label><input type="checkbox" id="agree" /> I agree to terms</label><br/>
+
+  <select id="country">
+    <option value="">--Select--</option>
+    <option value="IN">India</option>
+    <option value="US">USA</option>
+  </select><br/>
+
+  <button id="login-btn">Login Button</button>
+  <p id="welcome-msg" style="display:none;">Welcome!</p>
+
+  <hr>
+  <input type="file" id="fileInput" accept=".json" />
+  <p>Load a JSON file with steps to see the guided overlay in action.</p>
+  <div id="overlay" style="display:none;">
+    <div id="step-info"></div>
+    <div class="buttons">
+      <button onclick="prevStep()">Prev</button>
+      <button onclick="startSteps()"> Start</button>
+      <button onclick="nextStep()"> Next</button>
+      <button onclick="resetSteps()"> Reset</button>
+      <button onclick="replayAll()"> Replay All</button>
+    </div>
+  </div>
+
+  <script>
+    let steps = [];
+    let currentStep = -1;
+    let started = false;
+
+    // Login validation
+    document.getElementById("login-btn").addEventListener("click", () => {
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const agree = document.getElementById("agree").checked;
+      const gender = document.querySelector('input[name="gender"]:checked');
+      const country = document.getElementById("country").value;
+
+      if (username && password && agree && gender && country) {
+        document.getElementById("welcome-msg").style.display = "block";
+        console.log("Login successful → Welcome message displayed.");
+      } else {
+        alert("Please fill all fields before logging in.");
+        console.warn("Login failed: missing fields.");
+      }
+    });
+
+    // Load JSON steps
+    document.getElementById('fileInput').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = evt => {
+        steps = JSON.parse(evt.target.result);
+        resetSteps();
+        document.getElementById('overlay').style.display = 'block';
+        document.getElementById('step-info').textContent = 
+          `Loaded ${steps.length} steps. Click Start.`;
+      };
+      reader.readAsText(file);
+    });
+
+    // Highlight helpers
+    function highlight(selector) {
+      clearHighlights();
+      const el = document.querySelector(selector);
+      if (el) {
+        el.classList.add('highlight');
+        document.body.classList.add('dimmed');
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+
+    function clearHighlights() {
+      document.querySelectorAll('.highlight').forEach(e => e.classList.remove('highlight'));
+      document.body.classList.remove('dimmed');
+    }
+
+    // Execute one step
+    function runStep(step) {
+      console.log("Running step:", step);
+      let selector = step.target;
+
+      if (!selector || !document.querySelector(selector)) {
+        selector = resolveTarget(step.target || step.text || "");
+        console.log("Resolved:", step.target, "→", selector);
+      }
+
+      switch (step.action) {
+        case "navigate":
+          console.log("Navigate to:", step.url);
+          break;
+        case "type":
+          if (selector) document.querySelector(selector).value = step.value;
+          break;
+        case "click":
+          if (selector) document.querySelector(selector).click();
+          break;
+        case "select":
+          if (selector) {
+            const el = document.querySelector(selector);
+            el.value = step.value;
+          }
+          break;
+        case "radio":
+          if (selector) document.querySelector(selector).checked = true;
+          break;
+        case "check":
+          if (selector) document.querySelector(selector).checked = true;
+          break;
+        case "assert":
+          if (selector) {
+            const el = document.querySelector(selector);
+            console.log("Assert:", step.value, "==", el.textContent);
+          }
+          break;
+      }
+      if (selector) highlight(selector);
+
+      document.getElementById('step-info').textContent =
+        `Step ${currentStep+1} / ${steps.length}: ${step.text || step.action}`;
+    }
+
+    // Undo one step
+    function undoStep(step) {
+      let selector = step.target;
+      if (!selector || !document.querySelector(selector)) {
+        selector = resolveTarget(step.target || step.text || "");
+      }
+
+      switch (step.action) {
+        case "type":
+          if (selector) document.querySelector(selector).value = "";
+          break;
+        case "check":
+        case "radio":
+          if (selector) document.querySelector(selector).checked = false;
+          break;
+        case "select":
+          if (selector) document.querySelector(selector).selectedIndex = 0;
+          break;
+        case "click":
+          if (step.target?.toLowerCase().includes("login")) {
+            document.getElementById("welcome-msg").style.display = "none";
+          }
+          break;
+        case "navigate":
+          console.log("Undo navigate: staying on same page");
+          break;
+        case "assert":
+          console.log("Undo assert: nothing to undo");
+          break;
+      }
+    }
+
+    // Controls
+    function startSteps() {
+      if (!steps.length) return;
+      currentStep = 0;
+      started = true;
+      runStep(steps[currentStep]);
+    }
+
+    function nextStep() {
+      if (started && currentStep < steps.length - 1) {
+        currentStep++;
+        runStep(steps[currentStep]);
+      }
+    }
+
+    function prevStep() {
+      if (started && currentStep > 0) {
+        undoStep(steps[currentStep]);   // undo current step
+        currentStep--;
+        runStep(steps[currentStep]);    // rerun previous
+      }
+    }
+
+    function resetSteps() {
+      currentStep = -1;
+      started = false;
+      clearHighlights();
+
+      // Clear all form fields
+      document.querySelectorAll("input, select").forEach(el => {
+        if (el.type === "text" || el.type === "password") {
+          el.value = "";
+        } else if (el.type === "checkbox" || el.type === "radio") {
+          el.checked = false;
+        } else if (el.tagName.toLowerCase() === "select") {
+          el.selectedIndex = 0;
+        }
+      });
+
+      // Hide welcome message
+      document.getElementById("welcome-msg").style.display = "none";
+
+      // Clear overlay text
+      document.getElementById('step-info').textContent = "";
+    }
+
+    function replayAll() {
+      if (!steps.length) return;
+      started = true;
+      currentStep = 0;
+      let i = 0;
+      function runNext() {
+        if (i < steps.length) {
+          currentStep = i;
+          runStep(steps[i]);
+          i++;
+          setTimeout(runNext, 1200);
+        }
+      }
+      runNext();
+    }
+  </script>
+</body>
+</html>
